@@ -18,10 +18,8 @@ export default function PlanningScreen() {
   const router = useRouter();
   const { tripsData, updateTripData } = useContext(TripContext);
   
-  // תיקון: הפכנו את הנתונים למצב (State) כדי שהמסך יתרענן מיד
   const [planData, setPlanData] = useState<any>(tripsData[name as string]?.planning || {});
 
-  // סנכרון הנתונים כדי לוודא שתמיד יש לנו את המידע המעודכן
   useEffect(() => {
     setPlanData(tripsData[name as string]?.planning || {});
   }, [tripsData, name]);
@@ -44,6 +42,7 @@ export default function PlanningScreen() {
       .catch(err => console.log(err));
   }, []);
 
+  // חישוב כמות הימים
   let totalDays = 1;
   if (start && end && typeof start === 'string' && typeof end === 'string') {
     const [sDay, sMonth, sYear] = start.split('/');
@@ -58,6 +57,25 @@ export default function PlanningScreen() {
   const daysArray = Array.from({ length: totalDays }, (_, i) => i + 1);
   const allHours = Array.from({ length: 24 }, (_, i) => i);
   
+  // פונקציה חדשה: ממירה את מספר היום לתאריך המדויק
+  const getFormattedDateForDay = (dayIndex: number) => {
+    if (!start || typeof start !== 'string') return `יום #${dayIndex}`;
+    const [sDay, sMonth, sYear] = start.split('/');
+    const startDate = new Date(`${sYear}-${sMonth}-${sDay}`);
+    
+    if (isNaN(startDate.getTime())) return `יום #${dayIndex}`;
+    
+    // מוסיפים ימים לתאריך ההתחלה
+    const targetDate = new Date(startDate);
+    targetDate.setDate(startDate.getDate() + (dayIndex - 1));
+    
+    const d = String(targetDate.getDate()).padStart(2, '0');
+    const m = String(targetDate.getMonth() + 1).padStart(2, '0');
+    const y = targetDate.getFullYear();
+    
+    return `${d}/${m}/${y}`;
+  };
+
   const timeOptions: string[] = [];
   for (let h = 0; h < 24; h++) { 
     for (let m = 0; m < 60; m += 15) { 
@@ -128,7 +146,6 @@ export default function PlanningScreen() {
       filteredExpenses.push({ id: activityId, l: `${newActivity.activity} (לו״ז)`, p: expInIls });
     }
 
-    // תיקון: מעדכנים את המצב המקומי כדי שהמסך יתרענן מיד
     const newPlanData = { ...planData, [formData.dayNum]: updatedActivities };
     setPlanData(newPlanData);
     
@@ -144,7 +161,6 @@ export default function PlanningScreen() {
     const currentExpenses = tripsData[name as string]?.expenses || [];
     const updatedExpenses = currentExpenses.filter((e: any) => e.id !== editingId);
 
-    // תיקון: מעדכנים את המצב המקומי כדי שהמסך יתרענן מיד במחיקה
     const newPlanData = { ...planData, [formData.dayNum]: updatedActivities };
     setPlanData(newPlanData);
 
@@ -182,7 +198,8 @@ export default function PlanningScreen() {
           return (
             <View key={dayNum} style={styles.dayCard}>
               <TouchableOpacity style={styles.dayHeader} onPress={() => setExpandedDay(expandedDay === dayNum ? null : dayNum)} activeOpacity={0.8}>
-                <Text style={styles.dayTitle}>יום #{dayNum}</Text>
+                {/* שינוי הכותרת לתצוגת התאריך המחושב */}
+                <Text style={styles.dayTitle}>{getFormattedDateForDay(dayNum)}</Text>
                 <Text style={styles.arrow}>{expandedDay === dayNum ? '▲' : '▼'}</Text>
               </TouchableOpacity>
 
