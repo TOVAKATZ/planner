@@ -23,9 +23,14 @@ export const TripProvider = ({ children }: { children: ReactNode }) => {
 
   // עדכון נתונים חכם שמונע דריסה של עדכונים מקבילים (לו"ז + הוצאות)
   const updateTripData = async (tripName: string, key: string, newData: any) => {
+    // בדיקה 1: האם בכלל יש שם לטיול?
+    if (!tripName) {
+      alert("שגיאה: האפליקציה לא זיהתה את שם הטיול ולכן לא יכולה לשמור.");
+      return;
+    }
+
     const docRef = doc(db, "users", "my_trips_data");
 
-    // שימוש ב-prev מבטיח שתמיד נעבוד עם המידע הכי עדכני ולא נדרוס
     setTripsData((prev: any) => {
       const updatedData = {
         ...prev,
@@ -37,15 +42,15 @@ export const TripProvider = ({ children }: { children: ReactNode }) => {
       return updatedData;
     });
 
-    // שמירה נקודתית בענן כדי לא לדרוס מידע אחר
     try {
       await setDoc(docRef, {
         [tripName]: {
           [key]: newData
         }
       }, { merge: true }); 
-    } catch (e) {
-      console.error("Error updating document: ", e);
+    } catch (e: any) {
+      // בדיקה 2: הקפצת שגיאת ה-Firebase המדויקת למסך
+      alert("שגיאת שרת Firebase: " + e.message);
     }
   };
 
