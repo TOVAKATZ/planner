@@ -21,22 +21,29 @@ export const TripProvider = ({ children }: { children: ReactNode }) => {
     return () => unsubscribe();
   }, []);
 
-  // עדכון נתונים בענן ובזיכרון המקומי
+  // עדכון נתונים חכם שמונע דריסה של עדכונים מקבילים (לו"ז + הוצאות)
   const updateTripData = async (tripName: string, key: string, newData: any) => {
     const docRef = doc(db, "users", "my_trips_data");
-    
-    const updatedData = {
-      ...tripsData,
-      [tripName]: {
-        ...(tripsData[tripName] || { planning: {}, expenses: [], packing: [], journal: {} }),
-        [key]: newData,
-      },
-    };
 
-    setTripsData(updatedData); // עדכון מיידי באפליקציה
+    // שימוש ב-prev מבטיח שתמיד נעבוד עם המידע הכי עדכני ולא נדרוס
+    setTripsData((prev: any) => {
+      const updatedData = {
+        ...prev,
+        [tripName]: {
+          ...(prev[tripName] || { planning: {}, expenses: [], packing: [], journal: {} }),
+          [key]: newData,
+        },
+      };
+      return updatedData;
+    });
 
+    // שמירה נקודתית בענן כדי לא לדרוס מידע אחר
     try {
-      await setDoc(docRef, updatedData, { merge: true }); // שמירה בענן
+      await setDoc(docRef, {
+        [tripName]: {
+          [key]: newData
+        }
+      }, { merge: true }); 
     } catch (e) {
       console.error("Error updating document: ", e);
     }
