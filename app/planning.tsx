@@ -18,7 +18,13 @@ export default function PlanningScreen() {
   const router = useRouter();
   const { tripsData, updateTripData } = useContext(TripContext);
   
-  let planData = tripsData[name as string]?.planning || {};
+  // תיקון: הפכנו את הנתונים למצב (State) כדי שהמסך יתרענן מיד
+  const [planData, setPlanData] = useState<any>(tripsData[name as string]?.planning || {});
+
+  // סנכרון הנתונים כדי לוודא שתמיד יש לנו את המידע המעודכן
+  useEffect(() => {
+    setPlanData(tripsData[name as string]?.planning || {});
+  }, [tripsData, name]);
 
   const [expandedDay, setExpandedDay] = useState<number | null>(null);
   const [rates, setRates] = useState<any>(null);
@@ -122,7 +128,11 @@ export default function PlanningScreen() {
       filteredExpenses.push({ id: activityId, l: `${newActivity.activity} (לו״ז)`, p: expInIls });
     }
 
-    updateTripData(name as string, 'planning', { ...planData, [formData.dayNum]: updatedActivities });
+    // תיקון: מעדכנים את המצב המקומי כדי שהמסך יתרענן מיד
+    const newPlanData = { ...planData, [formData.dayNum]: updatedActivities };
+    setPlanData(newPlanData);
+    
+    updateTripData(name as string, 'planning', newPlanData);
     updateTripData(name as string, 'expenses', filteredExpenses);
     setModalVisible(false);
   };
@@ -134,7 +144,11 @@ export default function PlanningScreen() {
     const currentExpenses = tripsData[name as string]?.expenses || [];
     const updatedExpenses = currentExpenses.filter((e: any) => e.id !== editingId);
 
-    updateTripData(name as string, 'planning', { ...planData, [formData.dayNum]: updatedActivities });
+    // תיקון: מעדכנים את המצב המקומי כדי שהמסך יתרענן מיד במחיקה
+    const newPlanData = { ...planData, [formData.dayNum]: updatedActivities };
+    setPlanData(newPlanData);
+
+    updateTripData(name as string, 'planning', newPlanData);
     updateTripData(name as string, 'expenses', updatedExpenses);
     setModalVisible(false);
   };
