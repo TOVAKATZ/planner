@@ -6,10 +6,10 @@ export const TripContext = createContext<any>(null);
 const db = getFirestore(app);
 
 export const TripProvider = ({ children }: { children: ReactNode }) => {
-  const [tripsData, setTripsData] = useState<any>({});
+  const [tripsData, setTripsData] = useState<any>([]);
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // 1. טעינה ראשונית ובטוחה מהזיכרון של הטלפון/דפדפן מיד כשהאפליקציה עולה
+  // 1. טעינה ראשונית מהזיכרון המקומי של המכשיר - מופעל מיד חסין מאיפוסים
   useEffect(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       const localData = localStorage.getItem('my_trips_data');
@@ -21,10 +21,10 @@ export const TripProvider = ({ children }: { children: ReactNode }) => {
         }
       }
     }
-    setIsInitialized(true); // מסמנים שהאפליקציה סיימה לטעון את הזיכרון המקומי
+    setIsInitialized(true);
   }, []);
 
-  // 2. האזנה ל-Firebase (ענן) - מתחילה רק אחרי שהטעינה המקומית הסתיימה
+  // 2. סנכרון חכם מול Firebase - מאזין לענן בלי למחוק מידע מקומי
   useEffect(() => {
     if (!isInitialized) return;
 
@@ -33,15 +33,19 @@ export const TripProvider = ({ children }: { children: ReactNode }) => {
       const unsubscribe = onSnapshot(docRef, (docSnap) => {
         if (docSnap.exists()) {
           const cloudData = docSnap.data();
-          setTripsData(cloudData);
-          
-          // גיבוי מיידי של מה שחזר מהענן לתוך הטלפון
-          if (typeof window !== 'undefined' && window.localStorage) {
-            localStorage.setItem('my_trips_data', JSON.stringify(cloudData));
+          // מעדכנים את האפליקציה רק אם באמת יש מידע ממשי בשרת
+          if (cloudData && Object.keys(cloudData).length > 0) {
+            setTripsData(cloudData);
+            if (typeof window !== 'undefined' && window.localStorage) {
+              localStorage.setItem('my_trips_data', JSON.stringify(cloudData));
+            }
           }
+        } else {
+          // הגנה קריטית: אם המסמך לא קיים בענן, לא נוגעים ולא דורסים את ה-LocalStorage!
+          console.log("Document does not exist in Firebase yet. Preserving local storage.");
         }
       }, (error) => {
-        console.log("Firebase is offline, using local storage instead.", error);
+        console.log("Firebase onSnapshot error:", error);
       });
       return () => unsubscribe();
     } catch (e) {
@@ -49,40 +53,34 @@ export const TripProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [isInitialized]);
 
-  // 3. עדכון נתונים חסין ושמירה כפולה (גם בטלפון וגם בענן)
+  // 3. עדכון בטוח, סינכרוני ומיידי - שומר מקומית ומשגר לענן ברקע
   const updateTripData = async (tripName: string, key: string, newData: any) => {
     if (!tripName) return;
 
-    let updatedData: any = {};
-
     setTripsData((prev: any) => {
-      updatedData = {
-        ...prev,
-        [tripName]: {
-          ...(prev[tripName] || { planning: {}, expenses: [], packing: [], journal: {} }),
-          [key]: newData,
-        },
+      const updatedTripState = {
+        ...(prev[tripName] || { planning: {}, expenses: [], packing: [], journal: {} }),
+        [key]: newData,
       };
 
-      // שמירה במאית השנייה בתוך המכשיר עצמו - שלא ילך לאיבוד לעולם!
+      const updatedAllTrips = {
+        ...prev,
+        [tripName]: updatedTripState,
+      };
+
+      // שמירה מקומית פיזית במכשיר באותה מאית שנייה!
       if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.setItem('my_trips_data', JSON.stringify(updatedData));
+        localStorage.setItem('my_trips_data', JSON.stringify(updatedAllTrips));
       }
 
-      return updatedData;
-    });
-
-    // ניסיון סנכרון מול הענן ברקע
-    try {
+      // שיגור לענן ברקע בלי לעכב את רנדור המסך
       const docRef = doc(db, "users", "my_trips_data");
-      const currentTripState = updatedData[tripName] || { planning: {}, expenses: [], packing: [], journal: {} };
-      
-      await setDoc(docRef, {
-        [tripName]: currentTripState
-      }, { merge: true }); 
-    } catch (e) {
-      console.log("Cloud sync paused, data safely stored on your device:", e);
-    }
+      setDoc(docRef, updatedAllTrips, { merge: true }).catch((e) => {
+        console.error("Cloud sync paused, but data is safe locally:", e);
+      });
+
+      return updatedAllTrips;
+    });
   };
 
   return (
