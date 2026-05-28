@@ -23,7 +23,11 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "display": "standalone",
+      "shortName": "planner",
+      "backgroundColor": "#ffffff",
+      "themeColor": "#E6F4FE"
     },
     "plugins": [
       "expo-router",
