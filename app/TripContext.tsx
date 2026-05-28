@@ -6,30 +6,41 @@ export const TripContext = createContext<any>(null);
 const db = getFirestore(app);
 
 export const TripProvider = ({ children }: { children: ReactNode }) => {
-  const [tripsData, setTripsData] = useState<any>({});
+  // 1. טעינה ראשונית מיידית מ-LocalStorage כדי שהמידע בחיים לא יימחק ביציאה
+  const [tripsData, setTripsData] = useState<any>(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const localData = localStorage.getItem('my_trips_data');
+      return localData ? JSON.parse(localData) : {};
+    }
+    return {};
+  });
 
-  // משיכת נתונים מהענן
+  // משיכת נתונים מהענן (אם החיבור תקין, הוא יסנכרן ויגבה מקומית)
   useEffect(() => {
-    const docRef = doc(db, "users", "my_trips_data");
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setTripsData(docSnap.data());
-      } else {
-        setTripsData({});
-      }
-    });
-    return () => unsubscribe();
+    try {
+      const docRef = doc(db, "users", "my_trips_data");
+      const unsubscribe = onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const cloudData = docSnap.data();
+          setTripsData(cloudData);
+          
+          // גיבוי הנתונים מהענן לתוך ה-LocalStorage
+          if (typeof window !== 'undefined' && window.localStorage) {
+            localStorage.setItem('my_trips_data', JSON.stringify(cloudData));
+          }
+        }
+      }, (error) => {
+        console.log("Firebase snapshot error, using local storage instead:", error);
+      });
+      return () => unsubscribe();
+    } catch (e) {
+      console.log("Firebase is offline:", e);
+    }
   }, []);
 
-  // עדכון נתונים חכם שמונע דריסה של עדכונים מקבילים (לו"ז + הוצאות)
+  // עדכון נתונים חכם ומשולב
   const updateTripData = async (tripName: string, key: string, newData: any) => {
-    // בדיקה 1: האם בכלל יש שם לטיול?
-    if (!tripName) {
-      alert("שגיאה: האפליקציה לא זיהתה את שם הטיול ולכן לא יכולה לשמור.");
-      return;
-    }
-
-    const docRef = doc(db, "users", "my_trips_data");
+    if (!tripName) return;
 
     setTripsData((prev: any) => {
       const updatedData = {
@@ -39,18 +50,30 @@ export const TripProvider = ({ children }: { children: ReactNode }) => {
           [key]: newData,
         },
       };
+
+      // 2. שמירה מיידית ב-LocalStorage - פועל במאית השנייה ולא מוחק כלום לעולם!
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem('my_trips_data', JSON.stringify(updatedData));
+      }
+
       return updatedData;
     });
 
+    // 3. ניסיון סנכרון מול הענן ברקע
     try {
+      const docRef = doc(db, "users", "my_trips_data");
+      
+      // שולחים את המבנה העדכני של הטיול כדי למנוע התנגשויות
+      const currentTripState = tripsData[tripName] || { planning: {}, expenses: [], packing: [], journal: {} };
+      
       await setDoc(docRef, {
         [tripName]: {
+          ...currentTripState,
           [key]: newData
         }
       }, { merge: true }); 
-    } catch (e: any) {
-      // בדיקה 2: הקפצת שגיאת ה-Firebase המדויקת למסך
-      alert("שגיאת שרת Firebase: " + e.message);
+    } catch (e) {
+      console.error("Cloud sync paused, data saved locally:", e);
     }
   };
 
