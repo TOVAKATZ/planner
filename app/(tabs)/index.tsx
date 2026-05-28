@@ -1,98 +1,122 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+import { useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
-            />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+  const router = useRouter();
+  const [destinations, setDestinations] = useState<any[]>([]);
+  const [modal, setModal] = useState(false);
+  const [name, setName] = useState('');
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+  const formatD = (t: string) => {
+    let v = t.replace(/\D/g, ''); 
+    if (v.length > 8) v = v.slice(0, 8); 
+    if (v.length > 4) return `${v.slice(0, 2)}/${v.slice(2, 4)}/${v.slice(4)}`;
+    if (v.length > 2) return `${v.slice(0, 2)}/${v.slice(2)}`;
+    return v;
+  };
+
+  const getMonthYear = (dateStr: string) => {
+    if (!dateStr || dateStr.length < 10) return '';
+    const parts = dateStr.split('/');
+    if (parts.length !== 3) return '';
+    const months = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'];
+    const monthIndex = parseInt(parts[1], 10) - 1;
+    const shortYear = parts[2].slice(2); 
+    if (monthIndex >= 0 && monthIndex < 12) return `${months[monthIndex]} ’${shortYear}`;
+    return '';
+  };
+
+  const getSortValue = (dateStr: string) => {
+    if (!dateStr || dateStr.length < 10) return 99999999; 
+    const parts = dateStr.split('/');
+    return parseInt(`${parts[2]}${parts[1]}${parts[0]}`, 10);
+  };
+
+  const addTrip = () => {
+    if (!name || !start || !end) return alert('חובה למלא את כל השדות');
+    const newTrip = { id: Date.now(), name, start, end };
+    const sorted = [...destinations, newTrip].sort((a, b) => getSortValue(a.start) - getSortValue(b.start));
+    setDestinations(sorted);
+    setModal(false);
+    setName(''); setStart(''); setEnd('');
+  };
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.header}>הטיולים שלי</Text>
+      
+      <ScrollView showsVerticalScrollIndicator={false}>
+        {destinations.map(d => (
+          <View key={d.id} style={styles.card}>
+            <View style={styles.cardLeft}>
+              <TouchableOpacity 
+                style={styles.btn} 
+                onPress={() => router.push({ pathname: '/dashboard', params: { name: d.name, start: d.start, end: d.end } })}
+              >
+                <Text style={styles.btnText}>פרטים</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => setDestinations(destinations.filter(x => x.id !== d.id))}>
+                <Text style={styles.delText}>מחיקה</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.cardRight}>
+              <Text style={styles.cardTitle}>{d.name}</Text>
+              <Text style={styles.cardMonth}>{getMonthYear(d.start)}</Text>
+              <Text style={styles.cardDates}>{d.start} - {d.end}</Text>
+            </View>
+          </View>
+        ))}
+      </ScrollView>
+
+      <TouchableOpacity style={styles.addBtn} onPress={() => setModal(true)}>
+        <Text style={styles.addBtnText}>+ יעד חדש</Text>
+      </TouchableOpacity>
+      
+      <Modal visible={modal} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalHeaderTitle}>לאן טסים?</Text>
+            <TextInput placeholder="שם היעד" value={name} onChangeText={setName} style={styles.input} placeholderTextColor="#C4B7B0" textAlign="right" />
+            <TextInput placeholder="תאריך יציאה (DDMMYYYY)" value={start} onChangeText={(t) => setStart(formatD(t))} style={styles.input} keyboardType="numeric" placeholderTextColor="#C4B7B0" textAlign="right" />
+            <TextInput placeholder="תאריך חזרה (DDMMYYYY)" value={end} onChangeText={(t) => setEnd(formatD(t))} style={styles.input} keyboardType="numeric" placeholderTextColor="#C4B7B0" textAlign="right" />
+            
+            <TouchableOpacity style={styles.saveBtn} onPress={addTrip}>
+              <Text style={styles.saveBtnText}>שמירה</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => setModal(false)}>
+              <Text style={styles.cancelTxt}>ביטול</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </View>
   );
 }
 
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
+const styles = StyleSheet.create({ 
+  container: { flex: 1, paddingTop: 70, paddingHorizontal: 25, backgroundColor: '#FDFBF7' }, 
+  header: { fontSize: 30, fontWeight: '300', letterSpacing: 1, textAlign: 'center', marginBottom: 35, color: '#4A3C31' }, 
+  card: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFFFFF', padding: 22, borderRadius: 24, marginBottom: 16, shadowColor: '#8C6A5D', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.05, shadowRadius: 15, elevation: 3 }, 
+  cardRight: { flex: 1, alignItems: 'flex-end', justifyContent: 'center' }, 
+  cardLeft: { alignItems: 'center', justifyContent: 'center', marginLeft: 15 }, 
+  cardTitle: { fontSize: 22, fontWeight: '500', color: '#4A3C31', marginBottom: 6, letterSpacing: 0.5 }, 
+  cardMonth: { fontSize: 15, color: '#8C6A5D', fontWeight: '400', marginBottom: 4 }, 
+  cardDates: { fontSize: 13, color: '#A08C7F', fontWeight: '300' }, 
+  btn: { backgroundColor: '#8C6A5D', paddingVertical: 10, paddingHorizontal: 20, borderRadius: 20 }, 
+  btnText: { color: '#FFFFFF', fontWeight: '500', fontSize: 13, letterSpacing: 0.5 }, 
+  delText: { color: '#C4B7B0', fontSize: 13, marginTop: 12, fontWeight: '400' }, 
+  addBtn: { backgroundColor: '#4A3C31', padding: 18, borderRadius: 30, alignItems: 'center', marginBottom: 30, shadowColor: '#4A3C31', shadowOffset: { width: 0, height: 5 }, shadowOpacity: 0.15, shadowRadius: 15 }, 
+  addBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '500', letterSpacing: 0.5 }, 
+  modalOverlay: { flex: 1, padding: 30, justifyContent: 'center', backgroundColor: 'rgba(74, 60, 49, 0.3)' }, 
+  modalContainer: { backgroundColor: '#FDFBF7', padding: 30, borderRadius: 30, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 25 }, 
+  modalHeaderTitle: { fontSize: 22, fontWeight: '400', color: '#4A3C31', textAlign: 'center', marginBottom: 25, letterSpacing: 0.5 },
+  input: { backgroundColor: '#FFFFFF', padding: 16, marginBottom: 16, borderRadius: 16, borderWidth: 1, borderColor: '#F0E6DD', color: '#4A3C31', fontSize: 15 }, 
+  saveBtn: { backgroundColor: '#8C6A5D', padding: 16, borderRadius: 20, alignItems: 'center', marginTop: 10 }, 
+  saveBtnText: { color: '#FFFFFF', fontWeight: '500', fontSize: 16, letterSpacing: 0.5 }, 
+  cancelBtn: { marginTop: 18, alignItems: 'center' }, 
+  cancelTxt: { color: '#A08C7F', fontWeight: '400', fontSize: 15 } 
 });
