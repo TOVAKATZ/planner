@@ -2,8 +2,7 @@ import { useRouter } from 'expo-router';
 import { doc, getFirestore, onSnapshot, setDoc } from 'firebase/firestore';
 import React, { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { app } from '../firebaseConfig';
-
+import { app } from '../../firebaseConfig';
 const db = getFirestore(app);
 
 export default function HomeScreen() {
@@ -15,7 +14,6 @@ export default function HomeScreen() {
   const [end, setEnd] = useState('');
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // 1. טעינה מקומית כדי שהמסך לא יהיה ריק לשנייה
   useEffect(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       const savedTrips = localStorage.getItem('my_saved_destinations');
@@ -26,34 +24,43 @@ export default function HomeScreen() {
     setIsInitialized(true);
   }, []);
 
-  // 2. חיבור חי לענן! מושך תמיד את רשימת הטיולים המעודכנת ביותר
   useEffect(() => {
     if (!isInitialized) return;
-    const docRef = doc(db, "users", "my_trips_metadata");
-    const unsubscribe = onSnapshot(docRef, (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (data.destinations && data.destinations.length > 0) {
-          setDestinations(data.destinations);
-          if (typeof window !== 'undefined' && window.localStorage) {
-            localStorage.setItem('my_saved_destinations', JSON.stringify(data.destinations));
+    try {
+      const docRef = doc(db, "users", "my_trips_metadata");
+      const unsubscribe = onSnapshot(docRef, (docSnap) => {
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          if (data.destinations && data.destinations.length > 0) {
+            setDestinations(data.destinations);
+            if (typeof window !== 'undefined' && window.localStorage) {
+              localStorage.setItem('my_saved_destinations', JSON.stringify(data.destinations));
+            }
           }
         }
-      }
-    });
-    return () => unsubscribe();
+      });
+      return () => unsubscribe();
+    } catch (e) {
+      console.log(e);
+    }
   }, [isInitialized]);
 
-  // 3. שמירת רשימת הטיולים גם בטלפון וגם בשרת (חסין למחיקות)
   const saveDestinations = async (newDestinations: any[]) => {
+    // קודם מעדכנים את המסך והזיכרון המקומי
     setDestinations(newDestinations);
     if (typeof window !== 'undefined' && window.localStorage) {
       localStorage.setItem('my_saved_destinations', JSON.stringify(newDestinations));
     }
+    
+    // שומרים בענן ומקפיצים הודעה למשתמש
     try {
       await setDoc(doc(db, "users", "my_trips_metadata"), { destinations: newDestinations }, { merge: true });
-    } catch (e) {
-      console.error("Cloud save failed", e);
+      alert("הטיול נשמר בענן בהצלחה! אפשר לצאת מהאפליקציה בראש שקט.");
+      
+      setModal(false);
+      setName(''); setStart(''); setEnd('');
+    } catch (e: any) {
+      alert("שגיאת שרת: " + e.message);
     }
   };
 
@@ -88,9 +95,6 @@ export default function HomeScreen() {
     const sorted = [...destinations, newTrip].sort((a, b) => getSortValue(a.start) - getSortValue(b.start));
     
     saveDestinations(sorted);
-    
-    setModal(false);
-    setName(''); setStart(''); setEnd('');
   };
 
   const deleteTrip = (idToRemove: number) => {
