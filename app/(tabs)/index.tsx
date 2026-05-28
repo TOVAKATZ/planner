@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function HomeScreen() {
@@ -9,6 +9,28 @@ export default function HomeScreen() {
   const [name, setName] = useState('');
   const [start, setStart] = useState('');
   const [end, setEnd] = useState('');
+
+  // 1. טעינה מיידית של הטיולים הקיימים מהכספת ברגע שהאפליקציה נפתחת
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const savedTrips = localStorage.getItem('my_saved_destinations');
+      if (savedTrips) {
+        try {
+          setDestinations(JSON.parse(savedTrips));
+        } catch (e) {
+          console.error("Error loading trips", e);
+        }
+      }
+    }
+  }, []);
+
+  // 2. פונקציה חכמה ששומרת תמיד גם למסך וגם לכספת המקומית
+  const saveDestinations = (newDestinations: any[]) => {
+    setDestinations(newDestinations);
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem('my_saved_destinations', JSON.stringify(newDestinations));
+    }
+  };
 
   const formatD = (t: string) => {
     let v = t.replace(/\D/g, ''); 
@@ -39,9 +61,18 @@ export default function HomeScreen() {
     if (!name || !start || !end) return alert('חובה למלא את כל השדות');
     const newTrip = { id: Date.now(), name, start, end };
     const sorted = [...destinations, newTrip].sort((a, b) => getSortValue(a.start) - getSortValue(b.start));
-    setDestinations(sorted);
+    
+    // שימוש בפונקציית השמירה החכמה
+    saveDestinations(sorted);
+    
     setModal(false);
     setName(''); setStart(''); setEnd('');
+  };
+
+  const deleteTrip = (idToRemove: number) => {
+    // מחיקה חכמה שגם מעדכנת את הכספת
+    const filtered = destinations.filter(x => x.id !== idToRemove);
+    saveDestinations(filtered);
   };
 
   return (
@@ -58,7 +89,7 @@ export default function HomeScreen() {
               >
                 <Text style={styles.btnText}>פרטים</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={() => setDestinations(destinations.filter(x => x.id !== d.id))}>
+              <TouchableOpacity onPress={() => deleteTrip(d.id)}>
                 <Text style={styles.delText}>מחיקה</Text>
               </TouchableOpacity>
             </View>
